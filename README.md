@@ -155,6 +155,18 @@ All 21 tests cover:
 
 ---
 
+## Live Production Endpoints
+
+| Resource | Live AWS URL |
+| :--- | :--- |
+| **API Base URL** | `https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws/` |
+| **Interactive Docs (Swagger)** | `https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws/docs` |
+| **Health Check** | `https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws/health` |
+| **Global Feed** | `https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws/api/v1/feed` |
+| **Category Feed** | `https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws/api/v1/feed/cybersec` |
+
+---
+
 ## Deployment & Cloudflare Setup
 
 For complete deployment instructions, IAM policies, and Cloudflare CNAME caching rules, see [Docs.md](file:///D:/zerodaily/Docs.md).

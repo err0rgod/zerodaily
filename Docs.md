@@ -397,7 +397,7 @@ In the Cloudflare Dashboard for domain `zerodaily.in`:
 
 | Type | Name | Target | Proxy Status |
 | :--- | :--- | :--- | :--- |
-| `CNAME` | `api` | `<lambda-url-id>.lambda-url.us-east-1.on.aws` | **Proxied (Orange Cloud)** |
+| `CNAME` | `api` | `lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws` | **Proxied (Orange Cloud)** |
 | `CNAME` | `media` | `zerodaily-article-images.s3.us-east-1.amazonaws.com` | **Proxied (Orange Cloud)** |
 
 #### Cloudflare Cache Rules:
