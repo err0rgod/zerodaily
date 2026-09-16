@@ -1,0 +1,44 @@
+import os
+from functools import lru_cache
+from typing import List, Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    # AWS Configuration
+    AWS_REGION: str = "us-east-1"
+    DYNAMODB_TABLE_NAME: str = "zerodaily-articles"
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+
+    # Firebase / FCM HTTP v1 Configuration
+    FIREBASE_PROJECT_ID: Optional[str] = None
+    FIREBASE_SERVICE_ACCOUNT_JSON: Optional[str] = None
+    FIREBASE_SECRET_NAME: Optional[str] = None
+
+    # Notification & Cooldown
+    NOTIFICATION_COOLDOWN_MINUTES: int = 30
+    ENABLE_ALL_BREAKING_TOPIC: bool = True
+
+    # Server Configuration
+    ENVIRONMENT: str = "development"
+    PORT: int = 8000
+    HOST: str = "0.0.0.0"
+    CORS_ORIGINS: str = "*"
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        if self.CORS_ORIGINS == "*":
+            return ["*"]
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
+
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()
