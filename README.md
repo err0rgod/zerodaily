@@ -162,13 +162,13 @@ All 25 tests cover:
 
 ## Live Production Endpoints
 
-| Resource | Live AWS URL |
-| :--- | :--- |
-| **API Base URL** | `https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws/` |
-| **Interactive Docs (Swagger)** | `https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws/docs` |
-| **Health Check** | `https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws/health` |
-| **Global Feed** | `https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws/api/v1/feed` |
-| **Category Feed** | `https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws/api/v1/feed/cybersec` |
+| Resource | Production Custom Domain | Direct AWS Target |
+| :--- | :--- | :--- |
+| **API Base URL** | `https://api.zerodaily.in/` | `https://d-zx4b7geovb.execute-api.us-east-1.amazonaws.com/` |
+| **Interactive Docs (Swagger)** | `https://api.zerodaily.in/docs` | `https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws/docs` |
+| **Health Check** | `https://api.zerodaily.in/health` | `.../health` *(200 OK)* |
+| **Global Feed** | `https://api.zerodaily.in/api/v1/feed` | `.../api/v1/feed` *(200 OK)* |
+| **Category Feed** | `https://api.zerodaily.in/api/v1/feed/cybersec` | `.../api/v1/feed/cybersec` |
 
 ---
 
