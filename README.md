@@ -1,6 +1,6 @@
 # ZeroDaily Serving API & Notification Worker (`api.zerodaily.in`)
 
-[![Tests](https://img.shields.io/badge/tests-21%20passed-success)](tests/)
+[![Tests](https://img.shields.io/badge/tests-25%20passed-success)](tests/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-blue.svg)](https://fastapi.tiangolo.com)
 [![AWS](https://img.shields.io/badge/AWS-DynamoDB%20%7C%20Lambda%20%7C%20S3-orange.svg)](https://aws.amazon.com)
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-Edge%20Cache-F38020.svg)](https://cloudflare.com)
@@ -74,6 +74,7 @@ zerodaily/
 │   ├── config.py                 # Pydantic BaseSettings & environment variables
 │   ├── db.py                     # Boto3 DynamoDB query service for GSIs & tables
 │   ├── main.py                   # FastAPI app, CORS, and Mangum Lambda adapter
+│   ├── middleware.py             # Defense-in-depth OWASP security headers
 │   ├── schemas.py                # Strict Pydantic contracts for API & alerts
 │   ├── routers/
 │   │   ├── articles.py           # GET /api/v1/articles/{id:path} & /api/v1/article
@@ -85,6 +86,9 @@ zerodaily/
 │       └── fcm_client.py         # FCM HTTP v1 OAuth2 client & payload builder
 ├── docs/
 │   └── MOBILE_NOTIFICATIONS.md   # Mobile client integration & subscription protocol
+├── scripts/
+│   ├── deploy.py                 # Automated packaging and deployment script
+│   └── setup_iam_roles.py        # Automated IAM role and policy provisioner
 ├── workers/
 │   └── stream_handler.py         # AWS Lambda handler for DynamoDB Streams
 ├── tests/
@@ -147,8 +151,9 @@ Run the complete test suite:
 pytest -v
 ```
 
-All 21 tests cover:
+All 25 tests cover:
 - FastAPI endpoints, status codes, and HTTP cache headers.
+- OWASP security headers, input validation, and sanitized 500 handling.
 - DynamoDB Stream event parsing and `is_breaking` filtering.
 - DynamoDB conditional write rate-limiting / cooldown locks.
 - FCM HTTP v1 message structure, topic routing, and multi-topic dispatch.
