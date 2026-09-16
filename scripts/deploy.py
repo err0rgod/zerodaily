@@ -289,7 +289,7 @@ def main():
     setup_stream_trigger("zerodaily-notification-worker", STREAM_ARN)
 
     print("\n" + "=" * 65)
-    print("DEPLOYMENT COMPLETE! 🚀")
+    print("DEPLOYMENT COMPLETE! [SUCCESS]")
     print(f"API Lambda:               zerodaily-api")
     print(f"Worker Lambda:            zerodaily-notification-worker")
     print(f"Public Live URL:          {function_url}")

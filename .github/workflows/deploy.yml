@@ -1,0 +1,97 @@
+name: ZeroDaily Serving API & Worker CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # JOB 1: Continuous Integration (Runs tests on every PR and push)
+  # ----------------------------------------------------------------------------
+  test:
+    name: Run Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Pytest Suite
+        env:
+          AWS_REGION: us-east-1
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: mock-access-key
+          AWS_SECRET_ACCESS_KEY: mock-secret-key
+          DYNAMODB_TABLE_NAME: zerodaily-articles
+          FIREBASE_PROJECT_ID: zerodaily-prod
+          FIREBASE_SECRET_NAME: zerodaily/firebase-key
+        run: |
+          pytest -v
+
+  # ----------------------------------------------------------------------------
+  # JOB 2: Continuous Deployment & Smoke Tests (Deploys on push to master/main)
+  # ----------------------------------------------------------------------------
+  deploy:
+    name: Package, Deploy & Smoke Test
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Deployment Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install boto3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Build Packages and Deploy Lambdas
+        run: |
+          python scripts/deploy.py
+
+      - name: Live Smoke Test - Health & Feed Endpoints
+        run: |
+          LIVE_URL="https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws"
+          echo "Testing Live Health Check..."
+          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$LIVE_URL/health")
+          echo "Health Check Response Code: $HEALTH_STATUS"
+          if [ "$HEALTH_STATUS" -ne 200 ]; then
+            echo "[ERROR] Health check failed with status $HEALTH_STATUS"
+            exit 1
+          fi
+
+          echo "Testing Live Global Feed..."
+          FEED_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$LIVE_URL/api/v1/feed")
+          echo "Feed Response Code: $FEED_STATUS"
+          if [ "$FEED_STATUS" -ne 200 ]; then
+            echo "[ERROR] Feed endpoint failed with status $FEED_STATUS"
+            exit 1
+          fi
+
+          echo "[SUCCESS] Smoke tests passed cleanly! Serving API is live and operational."
