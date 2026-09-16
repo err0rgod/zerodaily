@@ -379,9 +379,18 @@ To achieve a 0-spinner swiper experience on mobile (Flutter / React Native / Nat
    - **Timeout:** 30 seconds.
 2. **DynamoDB Stream Trigger**:
    - **Table:** `zerodaily-articles`
+   - **Stream ARN:** `arn:aws:dynamodb:us-east-1:339087217625:table/zerodaily-articles/stream/2026-09-16T09:39:09.468`
    - **Batch size:** 10
    - **Starting position:** `LATEST`
    - **StreamViewType:** `NEW_IMAGE`
+   - **CLI Command:**
+     ```bash
+     aws lambda create-event-source-mapping \
+       --function-name zerodaily-notification-worker \
+       --event-source-arn arn:aws:dynamodb:us-east-1:339087217625:table/zerodaily-articles/stream/2026-09-16T09:39:09.468 \
+       --batch-size 10 \
+       --starting-position LATEST
+     ```
 
 ### C. Cloudflare DNS & Proxy CNAME
 In the Cloudflare Dashboard for domain `zerodaily.in`:

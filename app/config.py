@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     # AWS Configuration
     AWS_REGION: str = "us-east-1"
     DYNAMODB_TABLE_NAME: str = "zerodaily-articles"
+    DYNAMODB_STREAM_ARN: Optional[str] = "arn:aws:dynamodb:us-east-1:339087217625:table/zerodaily-articles/stream/2026-09-16T09:39:09.468"
     AWS_ACCESS_KEY_ID: Optional[str] = None
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
 
