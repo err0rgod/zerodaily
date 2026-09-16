@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # Firebase / FCM HTTP v1 Configuration
     FIREBASE_PROJECT_ID: Optional[str] = None
     FIREBASE_SERVICE_ACCOUNT_JSON: Optional[str] = None
-    FIREBASE_SECRET_NAME: Optional[str] = None
+    FIREBASE_SECRET_NAME: Optional[str] = "zerodaily/firebase-key"
 
     # Notification & Cooldown
     NOTIFICATION_COOLDOWN_MINUTES: int = 30
