@@ -41,11 +41,20 @@ def format_article_response(item: Optional[dict]) -> JSONResponse:
     )
 
 
+def validate_article_url(url: str) -> None:
+    if not (url.startswith("http://") or url.startswith("https://")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Article ID must be a valid HTTP or HTTPS URL"
+        )
+
+
 @router.get("/api/v1/articles/{id:path}")
 def get_article_by_path(
-    id: str = Path(..., description="Canonical URL ID of the article")
+    id: str = Path(..., max_length=2048, description="Canonical URL ID of the article")
 ):
     """Fetches a single roasted article by path URL."""
+    validate_article_url(id)
     db = get_db_service()
     item = db.get_article_by_id(id)
     return format_article_response(item)
@@ -53,9 +62,10 @@ def get_article_by_path(
 
 @router.get("/api/v1/article")
 def get_article_by_query(
-    id: str = Query(..., description="Canonical URL ID of the article")
+    id: str = Query(..., max_length=2048, description="Canonical URL ID of the article")
 ):
     """Fetches a single roasted article by query parameter."""
+    validate_article_url(id)
     db = get_db_service()
     item = db.get_article_by_id(id)
     return format_article_response(item)

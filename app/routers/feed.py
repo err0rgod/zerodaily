@@ -35,11 +35,19 @@ def normalize_category(category: str) -> str:
     return canonical
 
 
+ISO_8601_REGEX = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$"
+
+
 @router.get("", response_model=FeedResponse)
 def get_global_feed(
     response: Response,
     limit: int = Query(20, ge=1, le=50, description="Number of items to return"),
-    cursor: Optional[str] = Query(None, description="ISO-8601 UTC timestamp of last item"),
+    cursor: Optional[str] = Query(
+        None,
+        max_length=40,
+        pattern=ISO_8601_REGEX,
+        description="ISO-8601 UTC timestamp of last item for pagination"
+    ),
 ) -> FeedResponse:
     """
     Returns the unified chronological feed across all tech categories.
@@ -77,9 +85,14 @@ def get_global_feed(
 @router.get("/{category}", response_model=CategoryFeedResponse)
 def get_category_feed(
     response: Response,
-    category: str = Path(..., description="Category key (e.g. cybersec, ai)"),
+    category: str = Path(..., max_length=30, pattern=r"^[a-zA-Z0-9_]+$", description="Category key (e.g. cybersec, ai)"),
     limit: int = Query(20, ge=1, le=50, description="Number of items to return"),
-    cursor: Optional[str] = Query(None, description="ISO-8601 UTC timestamp of last item"),
+    cursor: Optional[str] = Query(
+        None,
+        max_length=40,
+        pattern=ISO_8601_REGEX,
+        description="ISO-8601 UTC timestamp of last item for pagination"
+    ),
 ) -> CategoryFeedResponse:
     """
     Returns articles strictly within a single category, sorted newest first.

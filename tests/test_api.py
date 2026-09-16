@@ -147,3 +147,39 @@ def test_notification_history(mock_get_db):
     assert data["status"] == "success"
     assert data["count"] == 1
     assert data["data"][0]["push_punchline"] == "Major breach occurred"
+
+
+def test_security_headers_present():
+    response = client.get("/health")
+    assert response.headers.get("X-Content-Type-Options") == "nosniff"
+    assert response.headers.get("X-Frame-Options") == "DENY"
+    assert "max-age=31536000" in response.headers.get("Strict-Transport-Security", "")
+    assert "default-src 'none'" in response.headers.get("Content-Security-Policy", "")
+
+
+def test_invalid_cursor_format_rejected():
+    response = client.get("/api/v1/feed?cursor=not-a-valid-timestamp-injection")
+    assert response.status_code == 422
+
+
+def test_invalid_article_id_rejected():
+    response = client.get("/api/v1/articles/ftp://invalid-protocol.com")
+    assert response.status_code == 400
+    assert "must be a valid HTTP or HTTPS URL" in response.json()["detail"]
+
+
+@patch("app.routers.feed.get_db_service")
+def test_global_exception_handler_sanitizes_errors(mock_get_db):
+    mock_db = MagicMock()
+    mock_db.query_global_feed.side_effect = RuntimeError("Internal DynamoDB connection failure!")
+    mock_get_db.return_value = mock_db
+
+    safe_client = TestClient(app, raise_server_exceptions=False)
+    response = safe_client.get("/api/v1/feed")
+    assert response.status_code == 500
+    data = response.json()
+    assert data["status"] == "error"
+    # Verify internal error message is NOT leaked to the client
+    assert "Internal DynamoDB connection failure!" not in data["message"]
+    assert "internal server error" in data["message"].lower()
+

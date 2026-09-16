@@ -1,3 +1,4 @@
+import re
 import time
 import logging
 from datetime import datetime, timezone
@@ -41,7 +42,9 @@ class NotificationCooldownManager:
         expiry_epoch = now_epoch + cooldown_seconds
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        lock_key = f"NOTIF_COOLDOWN#{category.lower()}"
+        # Sanitize category to prevent key injection
+        clean_category = re.sub(r"[^a-zA-Z0-9_]", "", category.strip().lower())
+        lock_key = f"NOTIF_COOLDOWN#{clean_category}"
 
         try:
             # Atomic conditional put: succeed ONLY if key doesn't exist OR previous cooldown has expired
