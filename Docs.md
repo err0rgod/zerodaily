@@ -63,7 +63,7 @@ All primary data lives in **Amazon DynamoDB** in `us-east-1` with on-demand capa
 | Attribute | Type | Description |
 | :--- | :--- | :--- |
 | `id` | `String` | Canonical source URL (e.g. `https://thehackernews.com/2026/09/...`). |
-| `category` | `String` | One of `cybersec`, `ai`, `programming`, `robotics`, `defense_aerospace`, `hardware`. |
+| `category` | `String` | One of `cybersec`, `ai`, `programming`, `robotics`, `defense_aerospace`, `hardware`, `finance`. |
 | `published_at` | `String` | ISO-8601 UTC timestamp (e.g. `2026-09-16T12:00:00Z`). Used as the sort key. |
 | `feed_bucket` | `String` | Fixed value `"ALL"`. Used to partition the cross-category global feed. |
 | `title` | `String` | Original unaltered source headline. |
@@ -249,6 +249,11 @@ Fetches a single roasted article by canonical URL ID.
       "key": "hardware",
       "name": "Hardware & Semiconductors",
       "description": "Silicon, GPUs, fabrication, and quantum chips."
+    },
+    {
+      "key": "finance",
+      "name": "Finance, Markets & Commodities",
+      "description": "Global markets, commodities, energy, pharma, and venture deals."
     }
   ]
 }
@@ -331,8 +336,8 @@ Managed by [`app/services/fcm_client.py`](file:///D:/zerodaily/app/services/fcm_
 - Authenticates using Google Service Account credentials (from `.env` or AWS Secrets Manager).
 - Obtains OAuth2 Bearer token with scope `https://www.googleapis.com/auth/firebase.messaging`.
 - Dispatches to:
-  1. Category Topic: `/topics/topic_{category}` (e.g. `topic_cybersec`, `topic_ai`).
-  2. Catch-All Topic: `/topics/topic_breaking_all` (for users wanting all breaking alerts).
+  1. Category Topic: `topic_{category}` (e.g. `topic_cybersec`, `topic_ai`, `topic_finance`).
+  2. Catch-All Topic: `topic_breaking_all` (for users wanting all breaking alerts).
 
 ---
 

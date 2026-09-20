@@ -26,6 +26,7 @@ All topics follow the lower-case naming convention:
 | **Robotics & Automation** | `topic_robotics` | Humanoid milestones, major industrial automation breakthroughs. |
 | **Defense & Aerospace** | `topic_defense_aerospace`| Satellite launches, hypersonic updates, defense technology events. |
 | **Hardware & Silicon** | `topic_hardware` | GPU shortages, architectural tape-outs, semiconductor advances. |
+| **Finance & Markets** | `topic_finance` | Quant glitches, crypto debacles, venture capital, and market panics. |
 
 ---
 
@@ -77,22 +78,23 @@ The backend sends the following standardized JSON payload conforming to FCM HTTP
 ```json
 {
   "message": {
-    "topic": "topic_cybersec",
+    "topic": "topic_finance",
     "notification": {
-      "title": "ZeroDaily Breaking",
-      "body": "Massive CrowdStrike Kernel Driver Meltdown Grounding Flights"
+      "title": "ZeroDaily Breaking • Finance",
+      "body": "Algo Liquidation Cascade Wipes $40B in Flash Crash"
     },
     "data": {
-      "article_id": "https://example.com/crowdstrike-update",
-      "category": "cybersec",
-      "image_url": "https://media.zerodaily.in/images/cybersec/a1b2c3d4.webp",
+      "article_id": "https://example.com/finance-crash",
+      "category": "finance",
+      "image_url": "https://media.zerodaily.in/images/finance/a1b2c3d4.webp",
+      "push_punchline": "Algo Liquidation Cascade Wipes $40B in Flash Crash",
       "click_action": "FLUTTER_NOTIFICATION_CLICK"
     },
     "android": {
       "priority": "high",
       "notification": {
         "channel_id": "zerodaily_breaking",
-        "image": "https://media.zerodaily.in/images/cybersec/a1b2c3d4.webp"
+        "image": "https://media.zerodaily.in/images/finance/a1b2c3d4.webp"
       }
     },
     "apns": {
@@ -110,6 +112,7 @@ The backend sends the following standardized JSON payload conforming to FCM HTTP
 - `article_id`: Canonical URL ID. Use this to open the article card directly in the app swiper.
 - `category`: The category key to highlight the active tab.
 - `image_url`: CDN WebP image URL. Rendered in expanded Android / iOS push previews.
+- `push_punchline`: Short punchline string sent in the push notification alert.
 - `channel_id`: Android notification channel `zerodaily_breaking` (ensure your app creates this notification channel on startup).
 
 ---

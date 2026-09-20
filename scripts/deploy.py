@@ -243,13 +243,10 @@ def setup_stream_trigger(func_name: str, stream_arn: str):
 def main():
     logger.info("Starting ZeroDaily Automated Package & Deployment...")
 
-    # Only package if zip archives do not exist
-    if not (os.path.exists(API_ZIP) and os.path.exists(WORKER_ZIP)):
-        clean_build()
-        package_api()
-        package_worker()
-    else:
-        logger.info("Existing deployment packages found in build/. Skipping wheel installation.")
+    # Ensure fresh packaging of application code and worker dependencies
+    clean_build()
+    package_api()
+    package_worker()
 
     # Step 2: Deploy API Lambda (Note: AWS_REGION is reserved in Lambda, so omitted)
     api_env = {

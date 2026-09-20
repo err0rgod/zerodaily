@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
 
     # Firebase / FCM HTTP v1 Configuration
-    FIREBASE_PROJECT_ID: Optional[str] = None
+    FIREBASE_PROJECT_ID: Optional[str] = "zerodaily-prod"
     FIREBASE_SERVICE_ACCOUNT_JSON: Optional[str] = None
     FIREBASE_SECRET_NAME: Optional[str] = "zerodaily/firebase-key"
 

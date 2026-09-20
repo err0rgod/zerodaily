@@ -21,12 +21,13 @@ def test_fcm_build_payload_structure():
 
     message = payload["message"]
     assert message["topic"] == "topic_cybersec"
-    assert message["notification"]["title"] == "ZeroDaily Breaking"
+    assert message["notification"]["title"] == "ZeroDaily Breaking • Cybersec"
     assert message["notification"]["body"] == "Massive Zero-Day Exposed!"
 
     # Data check
     assert message["data"]["article_id"] == "https://example.com/exploit"
     assert message["data"]["category"] == "cybersec"
+    assert message["data"]["push_punchline"] == "Massive Zero-Day Exposed!"
     assert message["data"]["click_action"] == "FLUTTER_NOTIFICATION_CLICK"
 
     # Android check
@@ -35,6 +36,31 @@ def test_fcm_build_payload_structure():
     assert message["android"]["notification"]["image"] == "https://media.zerodaily.in/images/cybersec/hash.webp"
 
     # APNs check
+    assert message["apns"]["payload"]["aps"]["sound"] == "default"
+
+
+def test_fcm_build_payload_structure_finance():
+    client = FCMClient(project_id="test-project")
+    payload = client.build_payload(
+        topic="topic_finance",
+        push_punchline="Markets Tumble After Algo Flash Crash",
+        article_id="https://example.com/finance-crash",
+        category="finance",
+        image_url="https://media.zerodaily.in/images/finance/f1.webp",
+    )
+
+    message = payload["message"]
+    assert message["topic"] == "topic_finance"
+    assert message["notification"]["title"] == "ZeroDaily Breaking • Finance"
+    assert message["notification"]["body"] == "Markets Tumble After Algo Flash Crash"
+    assert message["data"]["article_id"] == "https://example.com/finance-crash"
+    assert message["data"]["category"] == "finance"
+    assert message["data"]["image_url"] == "https://media.zerodaily.in/images/finance/f1.webp"
+    assert message["data"]["push_punchline"] == "Markets Tumble After Algo Flash Crash"
+    assert message["data"]["click_action"] == "FLUTTER_NOTIFICATION_CLICK"
+    assert message["android"]["priority"] == "high"
+    assert message["android"]["notification"]["channel_id"] == "zerodaily_breaking"
+    assert message["android"]["notification"]["image"] == "https://media.zerodaily.in/images/finance/f1.webp"
     assert message["apns"]["payload"]["aps"]["sound"] == "default"
 
 
@@ -76,3 +102,36 @@ def test_dispatch_breaking_news_targets_both_topics(mock_send):
     assert "topic_robotics" in results
     assert "topic_breaking_all" in results
     assert mock_send.call_count == 2
+
+
+@patch.object(FCMClient, "send_notification")
+def test_dispatch_breaking_news_finance_targets_both_topics(mock_send):
+    mock_send.return_value = {"name": "msg_ok"}
+    client = FCMClient(project_id="test-project")
+
+    results = client.dispatch_breaking_news(
+        article_id="https://example.com/finance-flash",
+        category="finance",
+        push_punchline="Major Bank AI Trading Model Goes Rogue",
+        image_url="https://media.zerodaily.in/images/finance/f2.webp",
+    )
+
+    assert "topic_finance" in results
+    assert "topic_breaking_all" in results
+    assert mock_send.call_count == 2
+    # Verify call args for category topic
+    mock_send.assert_any_call(
+        topic="topic_finance",
+        push_punchline="Major Bank AI Trading Model Goes Rogue",
+        article_id="https://example.com/finance-flash",
+        category="finance",
+        image_url="https://media.zerodaily.in/images/finance/f2.webp",
+    )
+    # Verify call args for catch-all topic
+    mock_send.assert_any_call(
+        topic="topic_breaking_all",
+        push_punchline="Major Bank AI Trading Model Goes Rogue",
+        article_id="https://example.com/finance-flash",
+        category="finance",
+        image_url="https://media.zerodaily.in/images/finance/f2.webp",
+    )

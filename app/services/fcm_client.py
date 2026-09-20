@@ -16,6 +16,17 @@ FCM_SEND_URL_TEMPLATE = "https://fcm.googleapis.com/v1/projects/{project_id}/mes
 SCOPES = ["https://www.googleapis.com/auth/firebase.messaging"]
 
 
+CATEGORY_DISPLAY_MAP = {
+    "cybersec": "Cybersec",
+    "ai": "AI",
+    "programming": "Programming",
+    "robotics": "Robotics",
+    "defense_aerospace": "Defense & Aerospace",
+    "hardware": "Hardware",
+    "finance": "Finance",
+}
+
+
 class FCMClient:
     """
     Client for Firebase Cloud Messaging (FCM) using HTTP v1 API.
@@ -113,6 +124,15 @@ class FCMClient:
             cleaned = cleaned[len("/topics/"):]
         return cleaned
 
+    @staticmethod
+    def get_category_display_title(category: str) -> str:
+        """Formats the notification title with the display name of the category."""
+        if not category:
+            return "ZeroDaily Breaking"
+        cleaned = category.strip().lower()
+        display_name = CATEGORY_DISPLAY_MAP.get(cleaned, cleaned.replace("_", " ").title())
+        return f"ZeroDaily Breaking • {display_name}"
+
     def build_payload(
         self,
         topic: str,
@@ -123,17 +143,19 @@ class FCMClient:
     ) -> Dict[str, Any]:
         """Constructs the standard FCM HTTP v1 message structure."""
         clean_topic = self.normalize_topic(topic)
+        title = self.get_category_display_title(category)
         return {
             "message": {
                 "topic": clean_topic,
                 "notification": {
-                    "title": "ZeroDaily Breaking",
+                    "title": title,
                     "body": push_punchline,
                 },
                 "data": {
                     "article_id": article_id,
                     "category": category,
                     "image_url": image_url,
+                    "push_punchline": push_punchline,
                     "click_action": "FLUTTER_NOTIFICATION_CLICK",
                 },
                 "android": {
