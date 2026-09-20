@@ -20,8 +20,9 @@ def test_categories_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "success"
-    assert len(data["categories"]) == 6
+    assert len(data["categories"]) == 7
     assert any(c["key"] == "cybersec" for c in data["categories"])
+    assert any(c["key"] == "finance" for c in data["categories"])
     assert "max-age=86400" in response.headers.get("Cache-Control", "")
 
 

@@ -36,6 +36,11 @@ CATEGORIES = [
         name="Hardware & Semiconductors",
         description="Silicon, GPUs, fabrication, and quantum chips."
     ),
+    Category(
+        key="finance",
+        name="Finance, Markets & Commodities",
+        description="Global markets, commodities, energy, pharma, and venture deals."
+    ),
 ]
 
 

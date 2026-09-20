@@ -20,6 +20,11 @@ CATEGORY_ALIASES = {
     "defense": "defense_aerospace",
     "aerospace": "defense_aerospace",
     "hardware": "hardware",
+    "finance": "finance",
+    "markets": "finance",
+    "commodities": "finance",
+    "pharma": "finance",
+    "energy": "finance",
 }
 
 
