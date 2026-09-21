@@ -34,7 +34,14 @@ API_POLICY_DOC = {
                 "arn:aws:dynamodb:us-east-1:339087217625:table/zerodaily-articles",
                 "arn:aws:dynamodb:us-east-1:339087217625:table/zerodaily-articles/index/*",
             ],
-        }
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:GetSecretValue",
+            ],
+            "Resource": "arn:aws:secretsmanager:us-east-1:339087217625:secret:zerodaily/firebase-key*",
+        },
     ],
 }
 

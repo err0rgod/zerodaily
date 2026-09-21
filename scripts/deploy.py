@@ -80,6 +80,10 @@ def package_api():
         "pydantic>=2.6.0",
         "pydantic-settings>=2.2.0",
         "python-dotenv>=1.0.0",
+        "httpx>=0.27.0",
+        "google-auth>=2.28.0",
+        "cryptography>=42.0.0",
+        "requests>=2.31.0",
     ]
     install_dependencies(api_deps, API_PKG_DIR)
 
@@ -177,6 +181,27 @@ def deploy_or_update_lambda(
         else:
             raise
 
+    # Tag Lambda resource and publish an immutable release version in AWS
+    try:
+        fn_desc = lambda_client.get_function(FunctionName=func_name)
+        fn_arn = fn_desc["Configuration"]["FunctionArn"]
+        git_tag = os.environ.get("GITHUB_REF_NAME", os.environ.get("GIT_TAG", "latest"))
+        lambda_client.tag_resource(
+            Resource=fn_arn,
+            Tags={
+                "Service": "ZeroDaily",
+                "Environment": "production",
+                "Version": git_tag,
+            },
+        )
+        ver_res = lambda_client.publish_version(
+            FunctionName=func_name,
+            Description=f"ZeroDaily {func_name} released ({git_tag})",
+        )
+        logger.info(f"Published and tagged '{func_name}' version {ver_res.get('Version')} [{git_tag}]")
+    except Exception as tag_err:
+        logger.warning(f"Note on tagging/version publishing for '{func_name}': {tag_err}")
+
 
 def setup_function_url(func_name: str) -> str:
     """Configures public Lambda Function URL with CORS."""
@@ -253,6 +278,8 @@ def main():
         "DYNAMODB_TABLE_NAME": "zerodaily-articles",
         "CORS_ORIGINS": "*",
         "ENVIRONMENT": "production",
+        "FIREBASE_SECRET_NAME": "zerodaily/firebase-key",
+        "FIREBASE_PROJECT_ID": "zerodaily-prod",
     }
     deploy_or_update_lambda(
         func_name="zerodaily-api",
