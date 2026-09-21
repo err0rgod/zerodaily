@@ -5,6 +5,8 @@ from app.services.fcm_client import FCMClient
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("zerodaily.stream_handler")
+logger.setLevel(logging.INFO)
+logging.getLogger().setLevel(logging.INFO)
 
 
 def parse_dynamodb_attribute(attr: Dict[str, Any]) -> Any:

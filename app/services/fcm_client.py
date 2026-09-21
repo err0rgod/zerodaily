@@ -11,6 +11,7 @@ from botocore.exceptions import ClientError
 from app.config import get_settings
 
 logger = logging.getLogger("zerodaily.fcm")
+logger.setLevel(logging.INFO)
 
 FCM_SEND_URL_TEMPLATE = "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
 SCOPES = ["https://www.googleapis.com/auth/firebase.messaging"]

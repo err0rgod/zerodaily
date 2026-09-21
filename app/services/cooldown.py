@@ -8,6 +8,7 @@ from botocore.exceptions import ClientError
 from app.config import get_settings
 
 logger = logging.getLogger("zerodaily.cooldown")
+logger.setLevel(logging.INFO)
 
 
 class NotificationCooldownManager:
