@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from app.main import app
+from app.services.fcm_client import FCMClient
 
 client = TestClient(app)
 
@@ -183,4 +184,34 @@ def test_global_exception_handler_sanitizes_errors(mock_get_db):
     # Verify internal error message is NOT leaked to the client
     assert "Internal DynamoDB connection failure!" not in data["message"]
     assert "internal server error" in data["message"].lower()
+
+
+@patch.object(FCMClient, "subscribe_token_to_topics")
+def test_subscribe_endpoint(mock_subscribe):
+    mock_subscribe.return_value = ["topic_breaking_all", "topic_finance"]
+    response = client.post(
+        "/api/v1/notifications/subscribe",
+        json={"token": "test_device_token_12345", "topics": ["topic_breaking_all", "topic_finance"]},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "topic_breaking_all" in data["topics"]
+    assert "topic_finance" in data["topics"]
+    mock_subscribe.assert_called_once_with("test_device_token_12345", ["topic_breaking_all", "topic_finance"])
+
+
+@patch.object(FCMClient, "unsubscribe_token_from_topics")
+def test_unsubscribe_endpoint(mock_unsubscribe):
+    mock_unsubscribe.return_value = ["topic_finance"]
+    response = client.post(
+        "/api/v1/notifications/unsubscribe",
+        json={"token": "test_device_token_12345", "topics": ["topic_finance"]},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "topic_finance" in data["topics"]
+    mock_unsubscribe.assert_called_once_with("test_device_token_12345", ["topic_finance"])
+
 

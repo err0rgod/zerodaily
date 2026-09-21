@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import httpx
 from google.oauth2 import service_account
 import google.auth.transport.requests
@@ -262,3 +262,69 @@ class FCMClient:
                 results[all_topic] = {"error": str(e)}
 
         return results
+
+    def subscribe_token_to_topics(self, token: str, topics: List[str]) -> List[str]:
+        """
+        Subscribes a device registration token to one or more FCM topics
+        via the Google Instance ID batchAdd API.
+        """
+        access_token = self.get_access_token()
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "access_token_auth": "true",
+            "Content-Type": "application/json; UTF-8",
+        }
+        url = "https://iid.googleapis.com/iid/v1:batchAdd"
+        successful = []
+
+        with httpx.Client(timeout=10.0) as client:
+            for topic in topics:
+                clean_topic = self.normalize_topic(topic)
+                payload = {
+                    "to": f"/topics/{clean_topic}",
+                    "registration_tokens": [token.strip()],
+                }
+                try:
+                    res = client.post(url, headers=headers, json=payload)
+                    if res.is_success:
+                        successful.append(clean_topic)
+                        logger.info(f"Subscribed token to topic '{clean_topic}' successfully.")
+                    else:
+                        logger.warning(f"Failed subscribing token to topic '{clean_topic}': {res.status_code} {res.text}")
+                except Exception as e:
+                    logger.error(f"Error subscribing token to topic '{clean_topic}': {e}")
+
+        return successful
+
+    def unsubscribe_token_from_topics(self, token: str, topics: List[str]) -> List[str]:
+        """
+        Unsubscribes a device registration token from one or more FCM topics
+        via the Google Instance ID batchRemove API.
+        """
+        access_token = self.get_access_token()
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "access_token_auth": "true",
+            "Content-Type": "application/json; UTF-8",
+        }
+        url = "https://iid.googleapis.com/iid/v1:batchRemove"
+        successful = []
+
+        with httpx.Client(timeout=10.0) as client:
+            for topic in topics:
+                clean_topic = self.normalize_topic(topic)
+                payload = {
+                    "to": f"/topics/{clean_topic}",
+                    "registration_tokens": [token.strip()],
+                }
+                try:
+                    res = client.post(url, headers=headers, json=payload)
+                    if res.is_success:
+                        successful.append(clean_topic)
+                        logger.info(f"Unsubscribed token from topic '{clean_topic}' successfully.")
+                    else:
+                        logger.warning(f"Failed unsubscribing token from topic '{clean_topic}': {res.status_code} {res.text}")
+                except Exception as e:
+                    logger.error(f"Error unsubscribing token from topic '{clean_topic}': {e}")
+
+        return successful

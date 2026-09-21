@@ -82,3 +82,16 @@ class NotificationHistoryResponse(BaseModel):
     status: str = "success"
     data: List[NotificationHistoryItem]
     count: int
+
+
+class TopicSubscriptionRequest(BaseModel):
+    token: str = Field(..., min_length=10, description="FCM device registration token")
+    topics: List[str] = Field(..., min_length=1, description="List of FCM topics to subscribe or unsubscribe")
+
+
+class TopicSubscriptionResponse(BaseModel):
+    status: str = "success"
+    message: str
+    token: str
+    topics: List[str]
+

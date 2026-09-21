@@ -1,6 +1,12 @@
 from fastapi import APIRouter, Query, Response
-from app.schemas import NotificationHistoryResponse, NotificationHistoryItem
+from app.schemas import (
+    NotificationHistoryResponse,
+    NotificationHistoryItem,
+    TopicSubscriptionRequest,
+    TopicSubscriptionResponse,
+)
 from app.db import get_db_service
+from app.services.fcm_client import FCMClient
 
 router = APIRouter(prefix="/api/v1/notifications", tags=["Notifications"])
 
@@ -35,3 +41,36 @@ def get_notification_history(
         data=items,
         count=len(items)
     )
+
+
+@router.post("/subscribe", response_model=TopicSubscriptionResponse)
+def subscribe_device_to_topics(body: TopicSubscriptionRequest) -> TopicSubscriptionResponse:
+    """
+    Subscribes an FCM device registration token to one or more topics.
+    Used by mobile clients (e.g. Expo) to synchronize category and breaking news subscriptions.
+    """
+    fcm_client = FCMClient()
+    successful = fcm_client.subscribe_token_to_topics(body.token, body.topics)
+    return TopicSubscriptionResponse(
+        status="success",
+        message=f"Subscribed token to {len(successful)} topics",
+        token=body.token,
+        topics=successful,
+    )
+
+
+@router.post("/unsubscribe", response_model=TopicSubscriptionResponse)
+def unsubscribe_device_from_topics(body: TopicSubscriptionRequest) -> TopicSubscriptionResponse:
+    """
+    Unsubscribes an FCM device registration token from one or more topics.
+    Used by mobile clients when user toggles off a category notification preference.
+    """
+    fcm_client = FCMClient()
+    successful = fcm_client.unsubscribe_token_from_topics(body.token, body.topics)
+    return TopicSubscriptionResponse(
+        status="success",
+        message=f"Unsubscribed token from {len(successful)} topics",
+        token=body.token,
+        topics=successful,
+    )
+
