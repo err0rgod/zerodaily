@@ -43,12 +43,12 @@ jobs:
           pytest -v
 
   # ----------------------------------------------------------------------------
-  # JOB 2: Continuous Deployment & Smoke Tests (Deploys on push to master/main)
+  # JOB 2: Continuous Deployment & Smoke Tests (Deploys strictly on release tags)
   # ----------------------------------------------------------------------------
   deploy:
     name: Package, Deploy & Smoke Test
     needs: test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 
     steps:
