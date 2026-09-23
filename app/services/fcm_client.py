@@ -224,11 +224,9 @@ class FCMClient:
         image_url: str,
     ) -> Dict[str, Any]:
         """
-        Dispatches to:
-        1. Category topic: topic_{category}
-        2. Catch-all topic: topic_breaking_all (if enabled)
+        Dispatches Notification to:
+        Category topic: topic_{category}
         """
-        settings = get_settings()
         clean_cat = category.strip().lower()
         cat_topic = f"topic_{clean_cat}"
         results = {}
@@ -245,22 +243,6 @@ class FCMClient:
         except Exception as e:
             logger.error(f"Failed sending breaking push to category topic '{cat_topic}': {e}")
             results[cat_topic] = {"error": str(e)}
-
-        # 2. Catch-all topic dispatch
-        if settings.ENABLE_ALL_BREAKING_TOPIC:
-            all_topic = "topic_breaking_all"
-            try:
-                results[all_topic] = self.send_notification(
-                    topic=all_topic,
-                    push_punchline=push_punchline,
-                    article_id=article_id,
-                    category=clean_cat,
-                    image_url=image_url,
-                )
-            except Exception as e:
-                logger.error(f"Failed sending breaking push to catch-all topic '{all_topic}': {e}")
-                results[all_topic] = {"error": str(e)}
-
         return results
 
     def subscribe_token_to_topics(self, token: str, topics: List[str]) -> List[str]:

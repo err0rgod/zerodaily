@@ -88,7 +88,7 @@ def test_fcm_send_notification(mock_post, mock_token):
 
 
 @patch.object(FCMClient, "send_notification")
-def test_dispatch_breaking_news_targets_both_topics(mock_send):
+def test_dispatch_breaking_news_targets_category_topics(mock_send):
     mock_send.return_value = {"name": "msg_ok"}
     client = FCMClient(project_id="test-project")
 
@@ -100,12 +100,13 @@ def test_dispatch_breaking_news_targets_both_topics(mock_send):
     )
 
     assert "topic_robotics" in results
-    assert "topic_breaking_all" in results
-    assert mock_send.call_count == 2
+    assert "topic_breaking_all" not in results
+    assert mock_send.call_count == 1
+    assert mock_send.call_args[1]["topic"] == "topic_robotics"
 
 
 @patch.object(FCMClient, "send_notification")
-def test_dispatch_breaking_news_finance_targets_both_topics(mock_send):
+def test_dispatch_breaking_news_finance_targets_category_topics(mock_send):
     mock_send.return_value = {"name": "msg_ok"}
     client = FCMClient(project_id="test-project")
 
@@ -117,21 +118,8 @@ def test_dispatch_breaking_news_finance_targets_both_topics(mock_send):
     )
 
     assert "topic_finance" in results
-    assert "topic_breaking_all" in results
-    assert mock_send.call_count == 2
-    # Verify call args for category topic
-    mock_send.assert_any_call(
-        topic="topic_finance",
-        push_punchline="Major Bank AI Trading Model Goes Rogue",
-        article_id="https://example.com/finance-flash",
-        category="finance",
-        image_url="https://media.zerodaily.in/images/finance/f2.webp",
-    )
-    # Verify call args for catch-all topic
-    mock_send.assert_any_call(
-        topic="topic_breaking_all",
-        push_punchline="Major Bank AI Trading Model Goes Rogue",
-        article_id="https://example.com/finance-flash",
-        category="finance",
-        image_url="https://media.zerodaily.in/images/finance/f2.webp",
-    )
+    assert "topic_breaking_all" not in results
+    assert mock_send.call_count == 1
+    assert mock_send.call_args[1]["topic"] == "topic_finance"
+
+    
