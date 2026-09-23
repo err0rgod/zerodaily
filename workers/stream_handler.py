@@ -2,6 +2,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from app.services.cooldown import NotificationCooldownManager
 from app.services.fcm_client import FCMClient
+from app.services.cdn_client import CDNClient
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("zerodaily.stream_handler")
@@ -80,22 +81,50 @@ def extract_breaking_article(record: Dict[str, Any]) -> Optional[Dict[str, Any]]
     }
 
 
+def extract_inserted_article_metadata(record: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    """Extracts category and image_url from any INSERT record for CDN cache refresh."""
+    if record.get("eventName") != "INSERT":
+        return None
+    new_image = record.get("dynamodb", {}).get("NewImage", {})
+    if not new_image:
+        return None
+    article_id = parse_dynamodb_attribute(new_image.get("id", {}))
+    if not article_id or str(article_id).startswith("NOTIF_"):
+        return None
+    category = parse_dynamodb_attribute(new_image.get("category", {})) or ""
+    image_url = parse_dynamodb_attribute(new_image.get("image_url", {})) or ""
+    return {"category": str(category).lower(), "image_url": str(image_url)}
+
+
 def lambda_handler(event: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
     """
     AWS Lambda entrypoint triggered by DynamoDB Streams on zerodaily-articles.
-    Processes INSERT events for breaking news and dispatches FCM topic notifications.
+    1. Processes INSERT events for breaking news and dispatches FCM topic notifications.
+    2. Automatically invalidates and pre-warms the Cloudflare CDN edge cache for new stories.
     """
     records: List[Dict[str, Any]] = event.get("Records", [])
     logger.info(f"Received DynamoDB stream batch with {len(records)} records.")
 
     cooldown_manager = NotificationCooldownManager()
     fcm_client = FCMClient()
+    cdn_client = CDNClient()
 
     processed_count = 0
     dispatched_count = 0
     suppressed_count = 0
 
+    affected_categories = set()
+    new_images: List[str] = []
+
     for record in records:
+        # Collect metadata for CDN cache invalidation
+        meta = extract_inserted_article_metadata(record)
+        if meta:
+            if meta["category"]:
+                affected_categories.add(meta["category"])
+            if meta["image_url"]:
+                new_images.append(meta["image_url"])
+
         article = extract_breaking_article(record)
         if not article:
             continue
@@ -117,7 +146,7 @@ def lambda_handler(event: Dict[str, Any], context: Any = None) -> Dict[str, Any]
             suppressed_count += 1
             continue
 
-        # 2. Dispatch push notification to FCM topics
+        # 2. Dispatch push notification to FCM category topic
         try:
             results = fcm_client.dispatch_breaking_news(
                 article_id=article_id,
@@ -130,12 +159,24 @@ def lambda_handler(event: Dict[str, Any], context: Any = None) -> Dict[str, Any]
         except Exception as e:
             logger.error(f"Failed to dispatch FCM push for {article_id}: {e}")
 
+    # 3. Purge and Pre-Warm Cloudflare CDN edge cache for newly inserted articles
+    cdn_summary = {}
+    if affected_categories or new_images:
+        try:
+            cdn_summary = cdn_client.purge_and_warm(
+                categories=list(affected_categories),
+                image_urls=new_images,
+            )
+        except Exception as e:
+            logger.error(f"Error during CDN purge & warm cycle: {e}")
+
     summary = {
         "status": "success",
         "total_records": len(records),
         "breaking_candidates": processed_count,
         "dispatched": dispatched_count,
         "cooldown_suppressed": suppressed_count,
+        "cdn_refresh": cdn_summary,
     }
     logger.info(f"Batch processing complete: {summary}")
     return summary

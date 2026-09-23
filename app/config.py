@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     NOTIFICATION_COOLDOWN_MINUTES: int = 30
     ENABLE_ALL_BREAKING_TOPIC: bool = True
 
+    # Cloudflare CDN Configuration
+    CLOUDFLARE_ZONE_ID: Optional[str] = None
+    CLOUDFLARE_API_TOKEN: Optional[str] = None
+    API_DOMAIN: str = "https://api.zerodaily.in"
+    MEDIA_DOMAIN: str = "https://media.zerodaily.in"
+
     # Server Configuration
     ENVIRONMENT: str = "development"
     PORT: int = 8000

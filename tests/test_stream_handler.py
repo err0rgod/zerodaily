@@ -79,9 +79,10 @@ def test_extract_breaking_article_ignores_internal_locks():
     assert extract_breaking_article(record) is None
 
 
+@patch("workers.stream_handler.CDNClient")
 @patch("workers.stream_handler.FCMClient")
 @patch("workers.stream_handler.NotificationCooldownManager")
-def test_lambda_handler_dispatches_when_cooldown_permits(mock_cooldown_cls, mock_fcm_cls):
+def test_lambda_handler_dispatches_when_cooldown_permits(mock_cooldown_cls, mock_fcm_cls, mock_cdn_cls):
     mock_cooldown = mock_cooldown_cls.return_value
     mock_cooldown.acquire_push_permission.return_value = True
 
@@ -115,9 +116,10 @@ def test_lambda_handler_dispatches_when_cooldown_permits(mock_cooldown_cls, mock
     mock_fcm.dispatch_breaking_news.assert_called_once()
 
 
+@patch("workers.stream_handler.CDNClient")
 @patch("workers.stream_handler.FCMClient")
 @patch("workers.stream_handler.NotificationCooldownManager")
-def test_lambda_handler_suppresses_when_in_cooldown(mock_cooldown_cls, mock_fcm_cls):
+def test_lambda_handler_suppresses_when_in_cooldown(mock_cooldown_cls, mock_fcm_cls, mock_cdn_cls):
     mock_cooldown = mock_cooldown_cls.return_value
     mock_cooldown.acquire_push_permission.return_value = False
 
