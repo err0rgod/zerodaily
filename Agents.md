@@ -402,6 +402,29 @@ Bidirectional merge of client offline bookmarks with cloud profile.
 
 ---
 
+### 10. Account Deletion & Reactivation Grace Period
+ZeroDaily supports account deletion with a strict 24-hour (1-day) recovery grace period.
+
+- **Paths:**
+  - `DELETE /api/v1/auth/account`
+  - `POST /api/v1/auth/delete-account`
+- **Headers:** `Authorization: Bearer <token>`
+- **Behavior:**
+  - Schedules deletion 24 hours into the future (`is_pending_deletion=True`, `deletion_scheduled_at={now + 24h}`).
+  - If user logs in within 24 hours, the account is automatically reactivated and a welcome-back restoration notice is returned.
+  - If the user attempts to authenticate after 24 hours, the account is permanently deleted from DynamoDB and rejected with `401 Unauthorized`.
+- **Response `200 OK`:**
+```json
+{
+  "status": "success",
+  "message": "Account scheduled for deletion. You have 24 hours to log in again to cancel deletion and reactivate your account.",
+  "deletion_scheduled_at": "2026-09-27T12:00:00Z",
+  "is_pending_deletion": true
+}
+```
+
+---
+
 ## 5. DynamoDB Query Logic & Pagination Patterns
 
 ### A. How to Query the Global Feed (Python / Boto3)

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import logging
 from typing import Optional, Dict, Any, List
 import uuid
@@ -15,6 +15,7 @@ from app.schemas import (
     FirebaseLoginRequest,
     UserProfile,
     AuthResponse,
+    AccountDeletionResponse,
     PreferencesUpdateRequest,
     UserTrackingEventRequest,
     TrackingResponse,
@@ -60,7 +61,48 @@ def to_user_profile(user_dict: Dict[str, Any]) -> UserProfile:
         algo_weights=user_dict.get("algo_weights") or build_default_algo_weights(),
         bookmarked_articles=user_dict.get("bookmarked_articles") or [],
         reading_count=int(user_dict.get("reading_count", 0)),
+        is_pending_deletion=bool(user_dict.get("is_pending_deletion", False)),
+        deletion_scheduled_at=user_dict.get("deletion_scheduled_at"),
+        account_restored=bool(user_dict.get("account_restored", False)),
     )
+
+
+def check_and_handle_account_deletion_on_login(user: Dict[str, Any], db: DynamoDBService) -> Optional[str]:
+    """
+    Checks if an account was marked for deletion:
+    - If the 24-hour grace period has passed: permanently deletes the account from DynamoDB
+      and raises HTTP 401.
+    - If within the 24-hour grace period: cancels deletion, reactivates the account, and returns
+      a welcome back notification message.
+    - If not marked for deletion: returns None.
+    """
+    if not user.get("is_pending_deletion"):
+        return None
+
+    deletion_scheduled_at = user.get("deletion_scheduled_at")
+    if deletion_scheduled_at:
+        try:
+            sched_dt = datetime.fromisoformat(deletion_scheduled_at.replace("Z", "+00:00"))
+            if sched_dt.tzinfo is None:
+                sched_dt = sched_dt.replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            if now >= sched_dt:
+                db.delete_user(user["user_id"])
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Account has been permanently deleted.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Error evaluating deletion expiration for user '{user.get('user_id')}': {e}")
+
+    # Reactivate account within grace period
+    user["is_pending_deletion"] = False
+    user["deletion_scheduled_at"] = None
+    user["account_restored"] = True
+    return "Welcome back! Your account deletion request was cancelled and your account has been restored."
 
 
 def get_current_user(
@@ -122,6 +164,27 @@ def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+    # If account was scheduled for deletion, verify if the 24h grace period expired
+    if user.get("is_pending_deletion"):
+        deletion_scheduled_at = user.get("deletion_scheduled_at")
+        if deletion_scheduled_at:
+            try:
+                sched_dt = datetime.fromisoformat(deletion_scheduled_at.replace("Z", "+00:00"))
+                if sched_dt.tzinfo is None:
+                    sched_dt = sched_dt.replace(tzinfo=timezone.utc)
+                now = datetime.now(timezone.utc)
+                if now >= sched_dt:
+                    db.delete_user(user["user_id"])
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Account has been permanently deleted.",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Error checking deletion expiration in get_current_user: {e}")
+
     return user
 
 
@@ -143,10 +206,24 @@ def register_account(
     # Check for existing email registration
     existing_user = db.get_user_by_email(clean_email)
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email address already exists.",
-        )
+        if existing_user.get("is_pending_deletion"):
+            deletion_scheduled_at = existing_user.get("deletion_scheduled_at")
+            if deletion_scheduled_at:
+                try:
+                    sched_dt = datetime.fromisoformat(deletion_scheduled_at.replace("Z", "+00:00"))
+                    if sched_dt.tzinfo is None:
+                        sched_dt = sched_dt.replace(tzinfo=timezone.utc)
+                    now = datetime.now(timezone.utc)
+                    if now >= sched_dt:
+                        db.delete_user(existing_user["user_id"])
+                        existing_user = None
+                except Exception:
+                    pass
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email address already exists.",
+            )
 
     user_id = f"usr_{uuid.uuid4().hex[:16]}"
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -195,6 +272,8 @@ def login_account(
 ) -> AuthResponse:
     """
     Authenticates user with email and password, issuing a 30-day session JWT.
+    If the account was pending deletion and the user logs in before the 24-hour
+    grace period expires, the account is reactivated.
     """
     response.headers["Cache-Control"] = "no-store"
     clean_email = req.email.strip().lower()
@@ -213,6 +292,8 @@ def login_account(
             detail="Invalid email or password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    restored_message = check_and_handle_account_deletion_on_login(user, db)
 
     user["last_active_at"] = datetime.now(timezone.utc).isoformat()
     db.save_user(user)
@@ -235,6 +316,7 @@ def login_account(
         access_token=token,
         token_type="bearer",
         user=to_user_profile(user),
+        message=restored_message,
     )
 
 
@@ -315,6 +397,7 @@ def login_with_firebase(
         if email:
             user = db.get_user_by_email(email)
 
+    restored_message = None
     if not user:
         user = {
             "user_id": user_id,
@@ -332,6 +415,7 @@ def login_with_firebase(
         }
         db.save_user(user)
     else:
+        restored_message = check_and_handle_account_deletion_on_login(user, db)
         user["last_active_at"] = now_iso
         db.save_user(user)
 
@@ -352,6 +436,7 @@ def login_with_firebase(
         access_token=token,
         token_type="bearer",
         user=to_user_profile(user),
+        message=restored_message,
     )
 
 
@@ -433,4 +518,34 @@ def sync_bookmarks(
     return SyncBookmarksResponse(
         status="success",
         bookmarks=merged,
+    )
+
+
+@router.delete("/account", response_model=AccountDeletionResponse)
+@router.post("/delete-account", response_model=AccountDeletionResponse)
+def request_account_deletion(
+    response: Response,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: DynamoDBService = Depends(get_db_service),
+) -> AccountDeletionResponse:
+    """
+    Schedules user account deletion with a 1-day (24-hour) grace period.
+    If the user logs in before the 24-hour window expires, the account is reactivated.
+    If after 24 hours, the account is permanently deleted.
+    """
+    response.headers["Cache-Control"] = "no-store"
+    now = datetime.now(timezone.utc)
+    deletion_scheduled_at = (now + timedelta(days=1)).isoformat()
+
+    current_user["is_pending_deletion"] = True
+    current_user["deletion_scheduled_at"] = deletion_scheduled_at
+    current_user["account_restored"] = False
+    current_user["last_active_at"] = now.isoformat()
+    db.save_user(current_user)
+
+    return AccountDeletionResponse(
+        status="success",
+        message="Account scheduled for deletion. You have 24 hours to log in again to cancel deletion and reactivate your account.",
+        deletion_scheduled_at=deletion_scheduled_at,
+        is_pending_deletion=True,
     )

@@ -134,6 +134,9 @@ class UserProfile(BaseModel):
     algo_weights: Dict[str, float] = Field(default_factory=dict, description="Category affinity weights for feed algorithm")
     bookmarked_articles: List[str] = Field(default_factory=list, description="List of bookmarked article IDs")
     reading_count: int = Field(0, description="Total number of articles read")
+    is_pending_deletion: bool = Field(False, description="True if account is scheduled for deletion")
+    deletion_scheduled_at: Optional[str] = Field(None, description="ISO-8601 timestamp when account will be permanently deleted")
+    account_restored: Optional[bool] = Field(False, description="True if account was restored during this session")
 
 
 class AuthResponse(BaseModel):
@@ -141,6 +144,14 @@ class AuthResponse(BaseModel):
     access_token: str = Field(..., description="JWT Bearer token")
     token_type: str = "bearer"
     user: UserProfile
+    message: Optional[str] = Field(None, description="Optional status or notification message")
+
+
+class AccountDeletionResponse(BaseModel):
+    status: str = "success"
+    message: str = Field(..., description="Confirmation and grace period notification")
+    deletion_scheduled_at: str = Field(..., description="ISO-8601 timestamp when account will be permanently deleted")
+    is_pending_deletion: bool = Field(True, description="True if deletion is pending")
 
 
 class PreferencesUpdateRequest(BaseModel):

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import pytest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
@@ -579,3 +579,173 @@ def test_track_reading_event_category_alias_normalized(mock_db, auth_service):
         action="read",
         duration_seconds=10.0,
     )
+
+
+def test_delete_account_success(mock_db, auth_service):
+    """Test authenticated user scheduling account deletion with 24-hour grace period."""
+    user_id = "usr_delete_test"
+    token = auth_service.create_access_token(user_id=user_id, email="del@example.com")
+    user_record = {
+        "user_id": user_id,
+        "email": "del@example.com",
+        "is_anonymous": False,
+        "created_at": "2026-09-26T10:00:00Z",
+        "last_active_at": "2026-09-26T10:00:00Z",
+    }
+    mock_db.get_user_by_id.return_value = user_record
+    mock_db.save_user.side_effect = lambda u: u
+
+    response = client.delete(
+        "/api/v1/auth/account",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["is_pending_deletion"] is True
+    assert "deletion_scheduled_at" in data
+    assert "24 hours" in data["message"]
+
+    # Verify user record updated in DynamoDB
+    saved_user = mock_db.save_user.call_args[0][0]
+    assert saved_user["is_pending_deletion"] is True
+    assert saved_user["deletion_scheduled_at"] is not None
+
+
+def test_delete_account_unauthorized():
+    """Test account deletion rejected without authentication."""
+    response = client.delete("/api/v1/auth/account")
+    assert response.status_code == 401
+
+
+def test_login_reactivates_account_within_grace_period(mock_db, auth_service):
+    """Test logging in within 24-hour grace period cancels deletion and restores account."""
+    user_id = "usr_restore_test"
+    hashed_pw = auth_service.hash_password("SafePassword123!")
+    future_deletion = (datetime.now(timezone.utc) + timedelta(hours=18)).isoformat()
+
+    mock_db.get_user_by_email.return_value = {
+        "user_id": user_id,
+        "email": "restore@example.com",
+        "password_hash": hashed_pw,
+        "is_pending_deletion": True,
+        "deletion_scheduled_at": future_deletion,
+        "is_anonymous": False,
+        "created_at": "2026-09-26T10:00:00Z",
+        "last_active_at": "2026-09-26T10:00:00Z",
+        "topic_preferences": {"ai": True},
+        "algo_weights": {"ai": 1.0},
+        "bookmarked_articles": [],
+        "reading_count": 2,
+    }
+    mock_db.save_user.side_effect = lambda u: u
+
+    payload = {
+        "email": "restore@example.com",
+        "password": "SafePassword123!",
+    }
+    response = client.post("/api/v1/auth/login", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "restored" in (data.get("message") or "").lower()
+    assert data["user"]["is_pending_deletion"] is False
+    assert data["user"]["account_restored"] is True
+
+    # Verify saved state in DB has deletion cancelled
+    saved_user = mock_db.save_user.call_args[0][0]
+    assert saved_user["is_pending_deletion"] is False
+    assert saved_user["deletion_scheduled_at"] is None
+
+
+def test_login_permanently_deletes_expired_account(mock_db, auth_service):
+    """Test logging in after 24-hour grace period permanently deletes account and rejects login."""
+    user_id = "usr_expired_test"
+    hashed_pw = auth_service.hash_password("SafePassword123!")
+    past_deletion = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+
+    mock_db.get_user_by_email.return_value = {
+        "user_id": user_id,
+        "email": "expired@example.com",
+        "password_hash": hashed_pw,
+        "is_pending_deletion": True,
+        "deletion_scheduled_at": past_deletion,
+        "is_anonymous": False,
+    }
+    mock_db.delete_user.return_value = True
+
+    payload = {
+        "email": "expired@example.com",
+        "password": "SafePassword123!",
+    }
+    response = client.post("/api/v1/auth/login", json=payload)
+    assert response.status_code == 401
+    assert "permanently deleted" in response.json()["detail"].lower()
+    mock_db.delete_user.assert_called_once_with(user_id)
+
+
+def test_protected_endpoint_rejects_and_deletes_expired_account(mock_db, auth_service):
+    """Test accessing protected route with active token when 24h grace period has passed."""
+    user_id = "usr_token_expired"
+    token = auth_service.create_access_token(user_id=user_id, email="token_exp@example.com")
+    past_deletion = (datetime.now(timezone.utc) - timedelta(hours=5)).isoformat()
+
+    mock_db.get_user_by_id.return_value = {
+        "user_id": user_id,
+        "email": "token_exp@example.com",
+        "is_pending_deletion": True,
+        "deletion_scheduled_at": past_deletion,
+        "is_anonymous": False,
+    }
+    mock_db.delete_user.return_value = True
+
+    response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+    assert "permanently deleted" in response.json()["detail"].lower()
+    mock_db.delete_user.assert_called_once_with(user_id)
+
+
+def test_register_purges_expired_pending_account_and_succeeds(mock_db):
+    """Test registering with email of an account whose 24h deletion window expired."""
+    user_id = "usr_purged_old"
+    past_deletion = (datetime.now(timezone.utc) - timedelta(hours=10)).isoformat()
+
+    # First call returns old expired user, then after delete_user returns None
+    mock_db.get_user_by_email.return_value = {
+        "user_id": user_id,
+        "email": "reregister@example.com",
+        "is_pending_deletion": True,
+        "deletion_scheduled_at": past_deletion,
+    }
+    mock_db.delete_user.return_value = True
+    mock_db.save_user.side_effect = lambda u: u
+    mock_db.get_user_by_id.return_value = None
+
+    payload = {
+        "email": "reregister@example.com",
+        "password": "NewFreshPassword123!",
+    }
+    response = client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 201
+    mock_db.delete_user.assert_called_once_with(user_id)
+
+
+def test_register_rejects_during_pending_deletion_grace_period(mock_db):
+    """Test registering with email of an account currently within 24h grace period is rejected."""
+    user_id = "usr_pending_grace"
+    future_deletion = (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat()
+
+    mock_db.get_user_by_email.return_value = {
+        "user_id": user_id,
+        "email": "pending@example.com",
+        "is_pending_deletion": True,
+        "deletion_scheduled_at": future_deletion,
+    }
+
+    payload = {
+        "email": "pending@example.com",
+        "password": "Password123!",
+    }
+    response = client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"].lower()
