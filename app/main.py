@@ -6,7 +6,7 @@ from mangum import Mangum
 
 from app.config import get_settings
 from app.middleware import SecurityHeadersMiddleware
-from app.routers import meta, feed, articles, notifications
+from app.routers import meta, feed, articles, notifications, auth
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("zerodaily.api")
@@ -29,7 +29,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS", "HEAD"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],
 )
 
@@ -51,6 +51,7 @@ app.include_router(meta.router)
 app.include_router(feed.router)
 app.include_router(articles.router)
 app.include_router(notifications.router)
+app.include_router(auth.router)
 
 
 @app.get("/")

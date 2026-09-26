@@ -94,11 +94,42 @@ if __name__ == "__main__":
         help="Cloudflare CDN WebP image URL",
     )
 
-    args = parser.parse_args()
-    send_test_push(
-        topic=args.topic,
-        category=args.category,
-        punchline=args.punchline,
-        article_id=args.article_id,
-        image_url=args.image_url,
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Broadcast test notification across all topics (topic_breaking_all + all categories)",
     )
+
+    args = parser.parse_args()
+
+    if args.all:
+        TOPICS = [
+            ("topic_breaking_all", "all"),
+            ("topic_cybersec", "cybersec"),
+            ("topic_ai", "ai"),
+            ("topic_programming", "programming"),
+            ("topic_robotics", "robotics"),
+            ("topic_defense_aerospace", "defense_aerospace"),
+            ("topic_hardware", "hardware"),
+            ("topic_finance", "finance"),
+        ]
+        print(f"Broadcasting test notification to ALL {len(TOPICS)} topics...")
+        for topic, cat in TOPICS:
+            try:
+                send_test_push(
+                    topic=topic,
+                    category=cat,
+                    punchline=args.punchline,
+                    article_id=args.article_id,
+                    image_url=args.image_url,
+                )
+            except Exception as e:
+                print(f"Failed to send to {topic}: {e}")
+    else:
+        send_test_push(
+            topic=args.topic,
+            category=args.category,
+            punchline=args.punchline,
+            article_id=args.article_id,
+            image_url=args.image_url,
+        )

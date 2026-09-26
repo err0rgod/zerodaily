@@ -37,6 +37,8 @@ jobs:
           AWS_ACCESS_KEY_ID: mock-access-key
           AWS_SECRET_ACCESS_KEY: mock-secret-key
           DYNAMODB_TABLE_NAME: zerodaily-articles
+          DYNAMODB_USERS_TABLE_NAME: zerodaily-users
+          JWT_SECRET_KEY: zerodaily-auth-jwt-secret-key-prod-2026-secure-us-east-1
           FIREBASE_PROJECT_ID: zerodaily-prod
           FIREBASE_SECRET_NAME: zerodaily/firebase-key
         run: |
@@ -73,13 +75,15 @@ jobs:
           aws-region: us-east-1
 
       - name: Build Packages and Deploy Lambdas
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
         run: |
           python scripts/deploy.py
 
       - name: Live Smoke Test - Health & Feed Endpoints
         run: |
-          LIVE_URL="https://lspu74rinclm2j7aabxn5udipm0sfqva.lambda-url.us-east-1.on.aws"
-          echo "Testing Live Health Check..."
+          LIVE_URL="https://lqtv5fde23x2ljbohqvpoq7xyi0ineij.lambda-url.us-east-1.on.aws"
+          echo "Testing Live Health Check ($LIVE_URL)..."
           HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$LIVE_URL/health")
           echo "Health Check Response Code: $HEALTH_STATUS"
           if [ "$HEALTH_STATUS" -ne 200 ]; then

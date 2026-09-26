@@ -11,10 +11,31 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger("deploy")
 
 REGION = "us-east-1"
-ACCOUNT_ID = "339087217625"
+profile = os.environ.get("AWS_PROFILE", "err0rgod")
+if len(sys.argv) > 1 and sys.argv[1].startswith("--profile="):
+    profile = sys.argv[1].split("=")[1]
+elif len(sys.argv) > 2 and sys.argv[1] == "--profile":
+    profile = sys.argv[2]
+
+logger.info(f"Deploying with AWS Profile: '{profile}' (Region: {REGION})")
+session = boto3.Session(profile_name=profile, region_name=REGION)
+sts = session.client("sts")
+ddb = session.client("dynamodb")
+lambda_client = session.client("lambda")
+
+ACCOUNT_ID = os.environ.get("AWS_ACCOUNT_ID") or sts.get_caller_identity()["Account"]
 API_ROLE_ARN = f"arn:aws:iam::{ACCOUNT_ID}:role/zerodaily-api-role"
 WORKER_ROLE_ARN = f"arn:aws:iam::{ACCOUNT_ID}:role/zerodaily-worker-role"
-STREAM_ARN = f"arn:aws:dynamodb:{REGION}:{ACCOUNT_ID}:table/zerodaily-articles/stream/2026-09-16T09:39:09.468"
+
+try:
+    desc = ddb.describe_table(TableName="zerodaily-articles")["Table"]
+    STREAM_ARN = desc.get("LatestStreamArn")
+except Exception as e:
+    logger.warning(f"Could not retrieve Stream ARN automatically: {e}")
+    STREAM_ARN = f"arn:aws:dynamodb:{REGION}:{ACCOUNT_ID}:table/zerodaily-articles/stream/*"
+
+logger.info(f"Targeting Account: {ACCOUNT_ID}")
+logger.info(f"Stream ARN: {STREAM_ARN}")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD_DIR = os.path.join(BASE_DIR, "build")
@@ -23,8 +44,6 @@ WORKER_PKG_DIR = os.path.join(BUILD_DIR, "worker_pkg")
 
 API_ZIP = os.path.join(BUILD_DIR, "zerodaily-api.zip")
 WORKER_ZIP = os.path.join(BUILD_DIR, "zerodaily-worker.zip")
-
-lambda_client = boto3.client("lambda", region_name=REGION)
 
 
 def clean_build():
@@ -84,6 +103,9 @@ def package_api():
         "google-auth>=2.28.0",
         "cryptography>=42.0.0",
         "requests>=2.31.0",
+        "bcrypt>=4.0.0",
+        "pyjwt>=2.8.0",
+        "email-validator>=2.0.0",
     ]
     install_dependencies(api_deps, API_PKG_DIR)
 
@@ -276,10 +298,12 @@ def main():
     # Step 2: Deploy API Lambda (Note: AWS_REGION is reserved in Lambda, so omitted)
     api_env = {
         "DYNAMODB_TABLE_NAME": "zerodaily-articles",
+        "DYNAMODB_USERS_TABLE_NAME": "zerodaily-users",
         "CORS_ORIGINS": "*",
         "ENVIRONMENT": "production",
         "FIREBASE_SECRET_NAME": "zerodaily/firebase-key",
         "FIREBASE_PROJECT_ID": "zerodaily-prod",
+        "JWT_SECRET_KEY": os.environ.get("JWT_SECRET_KEY", "zerodaily-auth-jwt-secret-key-prod-2026-secure-us-east-1"),
     }
     deploy_or_update_lambda(
         func_name="zerodaily-api",

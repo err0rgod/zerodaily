@@ -1,3 +1,5 @@
+import os
+import sys
 import logging
 import boto3
 from botocore.exceptions import ClientError
@@ -6,12 +8,37 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger("apigw_setup")
 
 REGION = "us-east-1"
-CERT_ARN = "arn:aws:acm:us-east-1:339087217625:certificate/d4796ff5-133e-4d8c-bfc9-a1c6190aa869"
-LAMBDA_ARN = "arn:aws:lambda:us-east-1:339087217625:function:zerodaily-api"
+profile = os.environ.get("AWS_PROFILE", "err0rgod")
+if len(sys.argv) > 1 and sys.argv[1].startswith("--profile="):
+    profile = sys.argv[1].split("=")[1]
+elif len(sys.argv) > 2 and sys.argv[1] == "--profile":
+    profile = sys.argv[2]
+
+session = boto3.Session(profile_name=profile, region_name=REGION)
+sts = session.client("sts")
+apigw = session.client("apigatewayv2")
+lambda_client = session.client("lambda")
+acm = session.client("acm")
+
+ACCOUNT_ID = sts.get_caller_identity()["Account"]
+LAMBDA_ARN = f"arn:aws:lambda:{REGION}:{ACCOUNT_ID}:function:zerodaily-api"
 DOMAIN_NAME = "api.zerodaily.in"
 
-apigw = boto3.client("apigatewayv2", region_name=REGION)
-lambda_client = boto3.client("lambda", region_name=REGION)
+# Dynamically find the ISSUED wildcard ACM certificate or fallback
+CERT_ARN = None
+certs = acm.list_certificates(CertificateStatuses=["ISSUED"]).get("CertificateSummaryList", [])
+for c in certs:
+    if c.get("DomainName") == "*.zerodaily.in":
+        CERT_ARN = c["CertificateArn"]
+        logger.info(f"Using ISSUED Wildcard ACM Certificate ({c.get('DomainName')}): {CERT_ARN}")
+        break
+
+if not CERT_ARN and certs:
+    CERT_ARN = certs[0]["CertificateArn"]
+    logger.info(f"Using ISSUED Certificate ({certs[0].get('DomainName')}): {CERT_ARN}")
+
+if not CERT_ARN:
+    raise RuntimeError(f"No ACM Certificate found for *.zerodaily.in or api.zerodaily.in in {ACCOUNT_ID}")
 
 
 def setup_api_gateway():
@@ -44,7 +71,7 @@ def setup_api_gateway():
             StatementId="ApiGatewayInvokePermission",
             Action="lambda:InvokeFunction",
             Principal="apigateway.amazonaws.com",
-            SourceArn=f"arn:aws:execute-api:{REGION}:339087217625:{api_id}/*",
+            SourceArn=f"arn:aws:execute-api:{REGION}:{ACCOUNT_ID}:{api_id}/*",
         )
         logger.info("Granted API Gateway permission to invoke Lambda.")
     except ClientError as e:

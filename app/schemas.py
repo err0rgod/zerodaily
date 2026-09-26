@@ -1,5 +1,5 @@
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any, Literal
+from pydantic import BaseModel, Field, EmailStr
 
 
 # --- Article & Feed Schemas ---
@@ -94,4 +94,83 @@ class TopicSubscriptionResponse(BaseModel):
     message: str
     token: str
     topics: List[str]
+
+
+# --- User & Authentication Schemas ---
+
+
+class UserRegisterRequest(BaseModel):
+    email: EmailStr = Field(..., description="User email address")
+    password: str = Field(..., min_length=6, max_length=128, description="User password (min 6 characters)")
+    display_name: Optional[str] = Field(None, max_length=60, description="Display name / alias")
+    guest_user_id: Optional[str] = Field(None, description="Previous anonymous guest ID to migrate data from")
+
+
+class UserLoginRequest(BaseModel):
+    email: EmailStr = Field(..., description="User email address")
+    password: str = Field(..., min_length=1, description="User password")
+    guest_user_id: Optional[str] = Field(None, description="Previous anonymous guest ID to migrate data from upon login")
+
+
+class GuestSessionRequest(BaseModel):
+    device_id: Optional[str] = Field(None, description="Optional unique device identifier")
+    initial_preferences: Optional[Dict[str, bool]] = Field(None, description="Initial category toggle states")
+
+
+class FirebaseLoginRequest(BaseModel):
+    id_token: str = Field(..., description="Firebase Auth ID Token")
+    guest_user_id: Optional[str] = Field(None, description="Previous anonymous guest ID to migrate data from")
+
+
+class UserProfile(BaseModel):
+    user_id: str = Field(..., description="Unique user identifier")
+    email: Optional[str] = Field(None, description="User email address")
+    display_name: Optional[str] = Field(None, description="Display name")
+    avatar_url: Optional[str] = Field(None, description="User avatar image URL")
+    is_anonymous: bool = Field(False, description="True if guest account")
+    created_at: str = Field(..., description="Account creation timestamp ISO-8601")
+    last_active_at: str = Field(..., description="Last activity timestamp ISO-8601")
+    topic_preferences: Dict[str, bool] = Field(default_factory=dict, description="Active topic preferences")
+    algo_weights: Dict[str, float] = Field(default_factory=dict, description="Category affinity weights for feed algorithm")
+    bookmarked_articles: List[str] = Field(default_factory=list, description="List of bookmarked article IDs")
+    reading_count: int = Field(0, description="Total number of articles read")
+
+
+class AuthResponse(BaseModel):
+    status: str = "success"
+    access_token: str = Field(..., description="JWT Bearer token")
+    token_type: str = "bearer"
+    user: UserProfile
+
+
+class PreferencesUpdateRequest(BaseModel):
+    topic_preferences: Dict[str, bool] = Field(..., description="Map of category keys to boolean subscriptions")
+
+
+class UserTrackingEventRequest(BaseModel):
+    article_id: str = Field(..., description="Canonical article URL ID")
+    category: str = Field(..., description="Category of the article")
+    action: Literal["read", "dwell", "skip", "bookmark", "share", "full_roast"] = Field(
+        ..., description="Action performed: read, dwell, skip, bookmark, share, full_roast"
+    )
+    duration_seconds: Optional[float] = Field(0.0, description="Dwell/reading duration in seconds")
+
+
+class TrackingResponse(BaseModel):
+    status: str = "success"
+    user_id: str
+    action: str
+    algo_weights: Dict[str, float]
+
+
+class SyncBookmarksRequest(BaseModel):
+    bookmarks: List[str] = Field(..., description="List of article IDs to sync")
+    mode: Optional[Literal["merge", "replace"]] = Field(
+        "merge", description="Sync mode: 'merge' (union) or 'replace' (set exact list)"
+    )
+
+
+class SyncBookmarksResponse(BaseModel):
+    status: str = "success"
+    bookmarks: List[str]
 

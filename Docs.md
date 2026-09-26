@@ -98,6 +98,27 @@ All primary data lives in **Amazon DynamoDB** in `us-east-1` with on-demand capa
      ScanIndexForward = False  # Newest first
      ```
 
+### Table: `zerodaily-users`
+User account credentials, reading telemetry, and dynamic category affinity weights.
+
+#### Primary Key
+- **Partition Key (`HASH`):** `user_id` (`String` - `usr_...`, `guest_...`, `fb_...`)
+
+#### Global Secondary Indexes (GSIs)
+- **`EmailIndex`**: Partition Key `email` (`String`), Projection `ALL`. Enables $O(1)$ email lookup during sign-in and duplicate account checking.
+
+#### Attributes & Personalized Feed Schema
+- `user_id`: Unique identifier.
+- `email`: Normalized lowercase email address.
+- `password_hash`: Bcrypt hash (rounds: 12) for email authentication.
+- `display_name`: User alias.
+- `is_anonymous`: Boolean flag distinguish guest vs permanent account.
+- `topic_preferences`: Category toggles for notification & feed filtering.
+- `algo_weights`: Category affinity multipliers ($0.1 \le w \le 3.0$) adjusted on dwell, bookmark, share, skip.
+- `bookmarked_articles`: List of saved canonical article IDs.
+- `reading_history`: Sliding window of last 50 read events.
+- `reading_count`: Total stories read count.
+
 ---
 
 ## 3. Cloudflare Edge Caching Strategy

@@ -92,6 +92,34 @@ Telemetry store for scraping runs and Lambda compute tracking.
 
 ---
 
+### Table: `zerodaily-users`
+User account profile, auth credentials, reading history, and feed personalization weights.
+
+- **Primary Key:**
+  - Partition Key (`HASH`): `user_id` (`String`, e.g. `usr_...`, `guest_...`, `fb_...`)
+- **Attributes:**
+  - `user_id` (`String`): Primary unique user identifier.
+  - `email` (`String`, optional): Lowercase user email address.
+  - `password_hash` (`String`, optional): Bcrypt hash of user password.
+  - `display_name` (`String`, optional): User handle or profile alias.
+  - `avatar_url` (`String`, optional): Profile picture URL.
+  - `is_anonymous` (`Boolean`): `true` for guest accounts, `false` for registered users.
+  - `created_at` (`String`): ISO-8601 UTC timestamp.
+  - `last_active_at` (`String`): ISO-8601 UTC timestamp.
+  - `topic_preferences` (`Map<String, Boolean>`): Subscriptions per category (`cybersec`, `ai`, `programming`, `robotics`, `defense_aerospace`, `hardware`, `finance`).
+  - `algo_weights` (`Map<String, Number>`): Dynamic category affinity multipliers (default: `1.0`, tuned dynamically between `0.1` and `3.0`).
+  - `bookmarked_articles` (`List<String>`): Array of canonical article URL IDs.
+  - `reading_history` (`List<Map>`): Bounded sliding window of last 50 interactions with dwell durations.
+  - `reading_count` (`Number`): Total count of stories read.
+
+#### Global Secondary Indexes (GSIs)
+1. **`EmailIndex`**
+   - **Partition Key (`HASH`):** `email` (`String`)
+   - **Projection:** `ALL`
+   - **Query Pattern:** Fast user lookup during login and duplicate registration detection.
+
+---
+
 ## 3. Media & Image Pipeline (`media.zerodaily.in`)
 
 ### Why Raw Third-Party URLs Are Forbidden
@@ -268,6 +296,107 @@ Diagnostic endpoint verifying API runtime and DynamoDB connectivity.
   "service": "zerodaily-api",
   "region": "us-east-1",
   "timestamp": "2026-09-16T12:00:00Z"
+}
+```
+
+---
+
+### 6. User Account Registration & Login
+ZeroDaily provides hybrid authentication supporting email/password accounts, Firebase ID tokens, and zero-friction guest sessions.
+
+- **Paths:**
+  - `POST /api/v1/auth/register` (Create permanent account, optional `guest_user_id` to migrate history)
+  - `POST /api/v1/auth/login` (Email + password authentication, returns 30-day JWT)
+  - `POST /api/v1/auth/guest` (Anonymous instant guest account with device ID)
+  - `POST /api/v1/auth/firebase-login` (Exchange Firebase Auth token for ZeroDaily JWT session)
+- **Cache Header:** `Cache-Control: no-store`
+- **Response `200 OK` / `201 Created`:**
+```json
+{
+  "status": "success",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "user": {
+    "user_id": "usr_9f8b7a6c",
+    "email": "reader@example.com",
+    "display_name": "Satire Reader",
+    "avatar_url": null,
+    "is_anonymous": false,
+    "created_at": "2026-09-26T12:00:00Z",
+    "last_active_at": "2026-09-26T12:00:00Z",
+    "topic_preferences": {
+      "cybersec": true,
+      "ai": true,
+      "programming": true,
+      "robotics": true,
+      "defense_aerospace": true,
+      "hardware": true,
+      "finance": true
+    },
+    "algo_weights": {
+      "cybersec": 1.0,
+      "ai": 1.0,
+      "programming": 1.0,
+      "robotics": 1.0,
+      "defense_aerospace": 1.0,
+      "hardware": 1.0,
+      "finance": 1.0
+    },
+    "bookmarked_articles": [],
+    "reading_count": 0
+  }
+}
+```
+
+---
+
+### 7. User Profile & Preferences Management
+- **Paths:**
+  - `GET /api/v1/auth/me` (Fetch current profile & algo weights)
+  - `PATCH /api/v1/auth/preferences` (Update category topic subscriptions)
+- **Headers:** `Authorization: Bearer <token>`
+- **Cache Header:** `Cache-Control: no-store`
+
+---
+
+### 8. User Interaction & Telemetry Tracking
+Telemetry beacon for training the user's category feed weights.
+
+- **Path:** `POST /api/v1/auth/track`
+- **Headers:** `Authorization: Bearer <token>`
+- **Request Body:**
+```json
+{
+  "article_id": "https://example.com/cyber-breach",
+  "category": "cybersec",
+  "action": "read",
+  "duration_seconds": 15.5
+}
+```
+Supported `action` values:
+- `read` / `dwell` / `full_roast`: Increases weight (`+0.15` up to `+0.65` depending on dwell duration), increments `reading_count`.
+- `bookmark`: Increases weight (`+0.30`).
+- `share`: Increases weight (`+0.25`).
+- `skip`: Decreases weight (`-0.05`).
+
+---
+
+### 9. Bookmark Synchronization
+Bidirectional merge of client offline bookmarks with cloud profile.
+
+- **Path:** `POST /api/v1/auth/sync-bookmarks`
+- **Headers:** `Authorization: Bearer <token>`
+- **Request Body:**
+```json
+{
+  "bookmarks": ["https://example.com/story-1", "https://example.com/story-2"]
+}
+```
+- **Response `200 OK`:**
+```json
+{
+  "status": "success",
+  "bookmarks": ["https://example.com/story-1", "https://example.com/story-2"]
 }
 ```
 
