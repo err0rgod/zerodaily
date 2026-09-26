@@ -294,6 +294,7 @@ def login_account(
         )
 
     restored_message = check_and_handle_account_deletion_on_login(user, db)
+    was_restored = bool(user.pop("account_restored", False))
 
     user["last_active_at"] = datetime.now(timezone.utc).isoformat()
     db.save_user(user)
@@ -311,11 +312,15 @@ def login_account(
         is_anonymous=user.get("is_anonymous", False),
     )
 
+    profile = to_user_profile(user)
+    if was_restored:
+        profile.account_restored = True
+
     return AuthResponse(
         status="success",
         access_token=token,
         token_type="bearer",
-        user=to_user_profile(user),
+        user=profile,
         message=restored_message,
     )
 
@@ -398,6 +403,7 @@ def login_with_firebase(
             user = db.get_user_by_email(email)
 
     restored_message = None
+    was_restored = False
     if not user:
         user = {
             "user_id": user_id,
@@ -417,6 +423,7 @@ def login_with_firebase(
     else:
         restored_message = check_and_handle_account_deletion_on_login(user, db)
         user["last_active_at"] = now_iso
+        was_restored = bool(user.pop("account_restored", False))
         db.save_user(user)
 
     if req.guest_user_id and req.guest_user_id != user["user_id"]:
@@ -431,11 +438,15 @@ def login_with_firebase(
         is_anonymous=user.get("is_anonymous", False),
     )
 
+    profile = to_user_profile(user)
+    if was_restored:
+        profile.account_restored = True
+
     return AuthResponse(
         status="success",
         access_token=token,
         token_type="bearer",
-        user=to_user_profile(user),
+        user=profile,
         message=restored_message,
     )
 

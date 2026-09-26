@@ -749,3 +749,89 @@ def test_register_rejects_during_pending_deletion_grace_period(mock_db):
     response = client.post("/api/v1/auth/register", json=payload)
     assert response.status_code == 409
     assert "already exists" in response.json()["detail"].lower()
+
+
+def test_post_delete_account_endpoint(mock_db, auth_service):
+    """Test POST /api/v1/auth/delete-account alias schedules deletion."""
+    user_id = "usr_post_del"
+    token = auth_service.create_access_token(user_id=user_id, email="postdel@example.com")
+    user_record = {
+        "user_id": user_id,
+        "email": "postdel@example.com",
+        "is_anonymous": False,
+        "created_at": "2026-09-26T10:00:00Z",
+        "last_active_at": "2026-09-26T10:00:00Z",
+    }
+    mock_db.get_user_by_id.return_value = user_record
+    mock_db.save_user.side_effect = lambda u: u
+
+    response = client.post(
+        "/api/v1/auth/delete-account",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["is_pending_deletion"] is True
+    assert "deletion_scheduled_at" in data
+
+
+@patch.object(AuthService, "verify_firebase_id_token")
+def test_firebase_login_reactivates_account_within_grace_period(mock_verify_fb, mock_db):
+    """Test signing in with Firebase within grace period restores the account."""
+    mock_verify_fb.return_value = {
+        "sub": "fb_grace_user_1",
+        "email": "graceuser@gmail.com",
+        "name": "Grace User",
+        "firebase": {"sign_in_provider": "google.com"},
+    }
+    future_deletion = (datetime.now(timezone.utc) + timedelta(hours=15)).isoformat()
+    mock_db.get_user_by_id.return_value = {
+        "user_id": "fb_fb_grace_user_1",
+        "email": "graceuser@gmail.com",
+        "is_pending_deletion": True,
+        "deletion_scheduled_at": future_deletion,
+        "is_anonymous": False,
+        "created_at": "2026-09-26T10:00:00Z",
+        "last_active_at": "2026-09-26T10:00:00Z",
+    }
+    mock_db.save_user.side_effect = lambda u: u
+
+    response = client.post("/api/v1/auth/firebase-login", json={"id_token": "valid_token"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert "restored" in (data.get("message") or "").lower()
+    assert data["user"]["is_pending_deletion"] is False
+    assert data["user"]["account_restored"] is True
+
+    # Confirm DynamoDB save cleared pending deletion flags
+    saved_user = mock_db.save_user.call_args[0][0]
+    assert saved_user["is_pending_deletion"] is False
+    assert saved_user["deletion_scheduled_at"] is None
+
+
+@patch.object(AuthService, "verify_firebase_id_token")
+def test_firebase_login_purges_expired_account(mock_verify_fb, mock_db):
+    """Test signing in with Firebase after 24h grace period purges old record and returns 401."""
+    mock_verify_fb.return_value = {
+        "sub": "fb_expired_user_2",
+        "email": "fbexpired@gmail.com",
+        "name": "Expired User",
+        "firebase": {"sign_in_provider": "google.com"},
+    }
+    past_deletion = (datetime.now(timezone.utc) - timedelta(hours=4)).isoformat()
+    mock_db.get_user_by_id.return_value = {
+        "user_id": "fb_fb_expired_user_2",
+        "email": "fbexpired@gmail.com",
+        "is_pending_deletion": True,
+        "deletion_scheduled_at": past_deletion,
+        "is_anonymous": False,
+    }
+    mock_db.delete_user.return_value = True
+
+    response = client.post("/api/v1/auth/firebase-login", json={"id_token": "valid_token"})
+    assert response.status_code == 401
+    assert "permanently deleted" in response.json()["detail"].lower()
+    mock_db.delete_user.assert_called_once_with("fb_fb_expired_user_2")
+
